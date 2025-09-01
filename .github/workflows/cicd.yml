@@ -10,6 +10,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     name: Build
@@ -51,32 +56,56 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with:
-            node-version: 22
-        - name: Install dependencies
-          run: npm ci
-        - name: Install Playwright Browsers
-          run: npx playwright install --with-deps
-        - name: Run Playwright tests
-          run: npx playwright test
-        - uses: actions/upload-artifact@v4
-          if: ${{ !cancelled() }}
-          with:
-            name: Integration Tests (Playwright)
-            path: reports-e2e/html/
-            if-no-files-found: error
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Run Playwright tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: Integration Tests (Playwright)
+          path: reports-e2e/html/
+          if-no-files-found: error
 
   deploy:
-    name: Deploy (mock)
+    name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     needs: [test_unit, test_integration]
-    container:
-      image: alpine:latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Mock deployment
-        run: echo 'Mock deployment was successful!'
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist   # 👈 change if your build folder is different
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   e2e:
     name: E2E (Playwright)
@@ -86,7 +115,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.54.2-jammy
       options: --user 1001
     env:
-      E2E_BASE_URL: https://spanish-cards.netlify.app/
+      E2E_BASE_URL: https://minhvo4398.github.io/spanish-word-flip-flash/
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
